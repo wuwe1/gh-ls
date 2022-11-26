@@ -1,5 +1,6 @@
 Output doc/gh-ls.gif
 
+Set PlaybackSpeed 0.5
 Set TypingSpeed 75ms
 Set FontSize 22
 Set Width 2000
