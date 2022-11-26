@@ -1,0 +1,141 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+CLI=$(basename "${BASH_SOURCE[0]}")
+
+version() {
+  echo "$CLI v0.1.0"
+  exit
+}
+
+usage() {
+  cat <<EOF
+Usage: $CLI <repo>
+
+> List GitHub repo contents
+
+Arguments:
+    <repo>            like: username/repo
+
+Options:
+    -h, --help        print usage
+    -v, --version     print version
+    -V, --verbose     enable debug
+    -b, --branch      branch or tag name
+    -R, --recurse     recurse into directory
+
+Dependencies: fzf, jq, bat
+
+Examples:
+    gh ls cli/cli
+    gh ls -R cli/cli
+EOF
+  exit
+}
+
+branch=""
+recurse=""
+
+gh_list() {
+  gh api "repos/$repo/git/trees/$branch" \
+    --jq '.tree[] | if .type == "tree" then "d "+.path else "f "+.path end' \
+    | fzf \
+    --preview="p=\$(echo {} | jq -rR '.[2:]');
+    ext=\${\$(basename \$p)##*.};
+    if [[ \$(echo {} | cut -d ' ' -f1) == 'd' ]]; then
+      echo {} is directory;
+    else
+      content=\$(echo \$p \
+        | jq -R '@uri' \
+        | xargs -I :: \
+          curl -fsSL \
+          --oauth2-bearer $token \
+          https://raw.githubusercontent.com/$repo/$branch/::);
+      echo \${content} | bat --color=always -n -p -P -l \${ext} 2>/dev/null \
+        || echo \${content} | bat
+    fi" \
+    --preview-window="border-left,right,70%,<80(up,50%,border-bottom)" \
+    --header="[preview] C-t: toggle C-u: up, C-d: down" \
+    --height=80% \
+    --border=none \
+    --filepath-word \
+    --bind 'ctrl-t:toggle-preview' \
+    --bind 'ctrl-u:preview-half-page-up' \
+    --bind 'ctrl-d:preview-half-page-down' \
+    --bind 'ctrl-w:backward-kill-word'
+}
+
+gh_list_r() {
+  gh api "repos/$repo/git/trees/$branch?recursive=1" \
+    --jq '.tree[] | select(.type=="blob") | .path' \
+    | fzf \
+    --preview="ext=\${\$(basename {})##*.};
+      content=\$(echo {} \
+        | jq -R '@uri' \
+        | xargs -I :: \
+          curl -fsSL \
+          --oauth2-bearer $token \
+          https://raw.githubusercontent.com/$repo/$branch/::);
+      echo \${content} | bat --color=always -n -p -P -l \${ext} 2>/dev/null \
+        || echo \${content} | bat" \
+    --preview-window="border-left,right,70%,<80(up,50%,border-bottom)" \
+    --header="[preview] C-t: toggle C-u: up, C-d: down" \
+    --height=80% \
+    --border=none \
+    --filepath-word \
+    --bind 'ctrl-t:toggle-preview' \
+    --bind 'ctrl-u:preview-half-page-up' \
+    --bind 'ctrl-d:preview-half-page-down' \
+    --bind 'ctrl-w:backward-kill-word'
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -h | --help)
+      usage
+      ;;
+    -v | --version)
+      version
+      ;;
+    -V | --verbose)
+      set -x 
+      shift
+      ;;
+    -b | --branch)
+      branch="$2"
+      shift 2
+      ;;
+    -R | --recurse)
+      recurse=true
+      shift
+      ;;
+    *)
+      repo="$1"
+      shift 
+      ;;
+  esac
+done
+
+for c in fzf jq bat; do
+  if ! type -p "$c" >/dev/null; then
+    echo "Error: Install \`$c\` to use this command." >&2
+    exit 1
+  fi
+done
+
+token=$(gh config get -h github.com oauth_token)
+
+if [[ ! $repo =~ .*/.* ]]; then
+  username="$(gh config get -h github.com user)"
+  repo="$user/$repo"
+fi
+
+if [[ ! $branch ]]; then
+  branch=$(gh api "repos/$repo" --jq '.default_branch')
+fi
+
+if [[ $recurse ]]; then
+  gh_list_r "$repo"
+else
+  gh_list "$repo"
+fi
