@@ -115,6 +115,11 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+if [[ ! $repo ]]; then
+  usage
+  exit 1
+fi
+
 for c in fzf jq bat; do
   if ! type -p "$c" >/dev/null; then
     echo "Error: Install \`$c\` to use this command." >&2
@@ -126,7 +131,7 @@ token=$(gh config get -h github.com oauth_token)
 
 if [[ ! $repo =~ .*/.* ]]; then
   username="$(gh config get -h github.com user)"
-  repo="$user/$repo"
+  repo="$username/$repo"
 fi
 
 if [[ ! $branch ]]; then
