@@ -33,6 +33,7 @@ EOF
   exit
 }
 
+repo=""
 branch=""
 recurse=""
 
@@ -99,9 +100,7 @@ while [[ $# -gt 0 ]]; do
       ;;
     -V | --verbose)
       set -x 
-      shift
-      ;;
-    -b | --branch)
+      shift ;; -b | --branch)
       branch="$2"
       shift 2
       ;;
