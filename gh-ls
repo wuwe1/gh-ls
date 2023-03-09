@@ -127,7 +127,7 @@ for c in fzf jq bat; do
   fi
 done
 
-token=$(gh config get -h github.com oauth_token)
+token=$(gh auth token)
 
 if [[ ! $repo =~ .*/.* ]]; then
   username="$(gh config get -h github.com user)"
